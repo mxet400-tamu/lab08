@@ -9,9 +9,9 @@ class MultiplyServer(Node): # class name
         
         # Create service server
         self.server_ = self.create_service(
-            AddTwoInts,              # Service type
+            AddTwoInts,                   # Service type
             "multiply_two_ints",          # Service name
-            self.callback_add_two_ints  # Callback function
+            self.callback_add_two_ints    # Callback function
         )
         
         self.get_logger().info("Multiply Two Ints Server has been started!")
@@ -30,4 +30,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-

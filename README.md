@@ -170,3 +170,4 @@ Before completing your lab report, verify:
 * [ ] Conveyor belt moves when `/CONVEYORPOWER` is set to `100.0`.
 * [ ] Red, blue, and green boxes spawn in order, travel down the belt, and are deleted when falling off ($z < 0.05$m).
 * [ ] `/box_color` echoes the matching color as each box is placed on the belt.
+

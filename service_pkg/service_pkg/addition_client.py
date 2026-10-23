@@ -3,47 +3,41 @@ import rclpy
 from rclpy.node import Node
 from example_interfaces.srv import AddTwoInts
 
-class AddTwoIntsClientNode(Node):
+class AdditionClient(Node): # class name
     def __init__(self):
-        super().__init__("add_two_ints_client")
+        super().__init__("add_two_ints_client") # node name
 
         # Step 1: Create the client
         self.client = self.create_client(
-            AddTwoInts, # client type
-            "add_two_ints" # client name
+            # Service Type
+            # Service name (like a radio station frequency, must be the same as server)
             )
 
         self.get_logger().info("Client node started!")
     
     def call_service(self, a, b):
-        # Step 2: Wait for server to be ready
         while not self.client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Waiting for server...")
         
-        # Step 3: Create the request (like filling out an order form)
-        request = AddTwoInts.Request()
-        request.a = a
-        request.b = b
+        # Step 2: Create the request (Use AddTwoInts.Request() to create a request object, then fill in the fields with the input integers)
+
         
-        # Step 4: Send request and wait for response
-        self.get_logger().info(f"Sending request: {a} + {b}")
-        future = self.client.call_async(request)     # Return a future object like a buzzer that will go off when the response is ready or tracking info for a package delivery
-        rclpy.spin_until_future_complete(self, future)
+        # Step 3: Send request and wait for response (modify to addition from multiply_client.py)
+
         
-        # Step 5: Get and display the response
-        response = future.result()              # without async, this would block the program until the response is received, but with async we can do other things while waiting for the response
-        self.get_logger().info(f"Result: {a} + {b} = {response.sum}")
+        # Step 4: Get and display the response (modify to addition from multiply_client.py)
+
 
 def main(args=None):
     rclpy.init(args=args)
-    node = AddTwoIntsClientNode()
+    node = AdditionClient()
 
     while True:
         try:
-            a= int(input("Enter first integer (or -1 to quit): "))
+            a = int(input("Enter first integer (or -1 to quit): "))
             if a == -1:
                 break
-            b= int(input("Enter second integer: "))
+            b = int(input("Enter second integer: "))
             node.call_service(a, b)
         except ValueError:
             print("Please enter valid integers.")
@@ -51,4 +45,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
