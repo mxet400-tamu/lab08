@@ -22,8 +22,6 @@ setup(
         'console_scripts': [
             'multiply_server = service_pkg.multiply_server:main',
             'multiply_client = service_pkg.multiply_client:main',
-            'addition_server = service_pkg.addition_server:main',
-            'addition_client = service_pkg.addition_client:main',
         ],
     },
 )
