@@ -6,11 +6,12 @@
 
 ## 1. Overview & Objectives
 
-In this lab, you transition from continuous data streaming (Topics) to request-response communication (Services), followed by integrating services into a Gazebo simulation:
+In this lab, you transition from asynchronous continuous data streaming (Topics) to synchronous request-response communication (Services), followed by integrating services into a Gazebo simulation:
 1. **Understand ROS 2 Services (`srv`)**: Learn the client-server pattern where a client sends a request and waits for a specific response.
-2. **Build Multiplication and Addition Services**: Explore reference multiplication nodes and implement addition service nodes using standard interfaces (`example_interfaces/srv/AddTwoInts`).
-3. **Simulate Industrial Conveyor Belt in Gazebo**: Use Gazebo plugins and ROS 2 services to actuate a moving conveyor belt (`/CONVEYORPOWER`).
-4. **Dynamic Entity Spawning & Color Tracking**: Complete the spawner node to spawn colored boxes (red, blue, green) onto the conveyor belt, detect when they reach the end of the line, automatically delete them, and publish the current block color to a ROS 2 topic (`/box_color`).
+2. **Inspect Reference Multiplication Service**: Understand how service servers and client nodes communicate using standard interfaces (`example_interfaces/srv/AddTwoInts`).
+3. **Implement Addition Service**: Build your own addition server and client nodes, update `setup.py` with the new entry points, and test communication.
+4. **Simulate Industrial Conveyor Belt in Gazebo**: Actuate a moving conveyor belt via the `/CONVEYORPOWER` service.
+5. **Dynamic Entity Spawning & Color Tracking**: Complete the `item_spawner.py` node to spawn alternating colored boxes (red, blue, green), detect when they drop off the belt, delete them, and publish the current block color to the `/box_color` topic.
 
 ---
 
@@ -19,14 +20,15 @@ In this lab, you transition from continuous data streaming (Topics) to request-r
 This repository contains four integrated packages:
 ```text
 lab08/
-├── README.md                          # This lab guide & command reference
-├── service_pkg/                       # Math service servers and clients
+├── README.md                          # Lab guide & command reference
+├── service_pkg/                       # Task 2: Math service servers and clients
+│   ├── package.xml
 │   ├── setup.py                       # Console scripts entry points
 │   └── service_pkg/
-│       ├── multiply_server.py         # Task 1: Reference server for /multiply_two_ints
-│       ├── multiply_client.py         # Task 1: Reference client for /multiply_two_ints
-│       ├── addition_server.py         # Task 2: Student template for /add_two_ints
-│       └── addition_client.py         # Task 2: Student template for /add_two_ints
+│       ├── multiply_server.py         # Reference server for /multiply_two_ints
+│       ├── multiply_client.py         # Reference client for /multiply_two_ints
+│       ├── addition_server.py         # Student template for /add_two_ints
+│       └── addition_client.py         # Student template for /add_two_ints
 ├── conveyorbelt_msgs/                 # Service message definitions
 │   └── srv/ConveyorBeltControl.srv    # Custom service definition (power float)
 ├── conveyorbelt_gazebo/               # Simulation environment & models
@@ -36,133 +38,186 @@ lab08/
 └── ros2_conveyorbelt/                 # Conveyor belt control plugin & spawner
     ├── src/ros2gz_conveyorbelt_system.cpp
     └── python/
-        ├── SpawnObject.py             # CLI object spawner tool
-        └── item_spawner.py            # Task 3: Spawner node template with # MODIFY HERE
+        ├── SpawnObject.py             # Single object spawner CLI tool
+        └── item_spawner.py            # Automated alternating spawner template
 ```
 
 ---
 
 ## 3. Getting Started & Workspace Build
 
-Ensure you build all packages from the root of your workspace:
+Build all packages from the root of your workspace:
 
 ```bash
 # 1. Navigate to workspace root
 cd ~/ros2_ws
 
 # 2. Build the packages
-colcon build --symlink-install --packages-select conveyorbelt_msgs conveyorbelt_gazebo ros2_conveyorbelt service_pkg
+colcon build --symlink-install
 
 # 3. Source the workspace
 source install/setup.bash
 ```
 
-*(Tip: If you have aliases configured: `go_ws` -> `cd ~/ros2_ws`, `cb_all` -> `colcon build --symlink-install`, `sros` -> `source install/setup.bash`)*
+> [!TIP]
+> If you have shell aliases configured:
+> - `go_ws` -> `cd ~/ros2_ws`
+> - `cb_all` -> `colcon build --symlink-install`
+> - `sros` -> `source install/setup.bash`
 
 ---
 
 ## 4. Lab Tasks & Execution Commands
 
-### Task 1: Multiplication Service (Server & Client - Reference)
+### Prelab: Conveyor Belt Launch & Verification
 
-The multiplication server listens on service `/multiply_two_ints` and computes `a * b`. Review the code in `multiply_server.py` and `multiply_client.py` to see how a ROS 2 service client and server operate.
+#### Terminal 1 — Launch Gazebo Conveyor Belt:
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 launch conveyorbelt_gazebo conveyorbelt.launch.py
+```
 
-#### Terminal 1 (Run Multiplication Server):
+#### Terminal 2 — Spawn Single Test Block:
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 run ros2_conveyorbelt SpawnObject.py --package "conveyorbelt_gazebo" --urdf "box.urdf" --name "box" --x 0.0 --y -0.5 --z 0.76
+```
+
+#### Terminal 3 — Control Conveyor Power:
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/ros2_ws/install/setup.bash
+
+# Start conveyor belt (power: 40)
+ros2 service call /CONVEYORPOWER conveyorbelt_msgs/srv/ConveyorBeltControl "{power: 40}"
+
+# Stop conveyor belt (power: 0)
+ros2 service call /CONVEYORPOWER conveyorbelt_msgs/srv/ConveyorBeltControl "{power: 0}"
+```
+
+---
+
+### Task 1: Exploring ROS 2 Services
+
+With Gazebo running in Terminal 1:
+
+```bash
+# List all active services
+ros2 service list
+
+# List active services with their interface types
+ros2 service list -t
+
+# Inspect the conveyor control service interface
+ros2 interface show conveyorbelt_msgs/srv/ConveyorBeltControl
+```
+
+Test starting and stopping the belt via service calls as described in the lab manual.
+
+---
+
+### Task 2: Creating a Service and Server (`service_pkg`)
+
+#### Section 1: Multiplication Service (Reference)
+Inspect `multiply_server.py` and `multiply_client.py` in `service_pkg/service_pkg/`. Notice how `console_scripts` in `service_pkg/setup.py` exposes them as ROS 2 executables.
+
+##### Terminal 1 — Run Multiplication Server:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 run service_pkg multiply_server
 ```
 
-#### Terminal 2 (Run Multiplication Client):
+##### Terminal 2 — Run Multiplication Client:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 run service_pkg multiply_client
 ```
 
-#### Terminal 3 (Testing via CLI):
-You can also call the service directly from the command line without the client script:
+##### Testing via CLI:
 ```bash
 ros2 service call /multiply_two_ints example_interfaces/srv/AddTwoInts "{a: 7, b: 9}"
 ```
 
 ---
 
-### Task 2: Addition Service (Server & Client - Student Implementation)
+#### Section 2: Addition Service (Student Implementation)
+Using the multiplication code as a reference:
+1. Open `addition_server.py` and `addition_client.py` and follow the `# Step` comments to implement the addition service.
+2. Update `service_pkg/setup.py` by adding the entry points for `addition_server` and `addition_client` to `console_scripts`.
+3. Rebuild and source:
+   ```bash
+   cd ~/ros2_ws
+   colcon build --symlink-install --packages-select service_pkg
+   source install/setup.bash
+   ```
 
-Using the multiplication client and server as a reference, complete `addition_server.py` and `addition_client.py` in `service_pkg`. Add their entry points to `service_pkg/setup.py`, rebuild the package, and test your nodes:
-
-#### Terminal 1 (Run Addition Server):
+##### Terminal 1 — Run Addition Server:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 run service_pkg addition_server
 ```
 
-#### Terminal 2 (Run Addition Client):
+##### Terminal 2 — Run Addition Client:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 run service_pkg addition_client
 ```
-*Enter two integers when prompted by the terminal.*
 
-#### Terminal 3 (Testing via CLI):
+##### Testing via CLI:
 ```bash
 ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 12, b: 18}"
 ```
 
 ---
 
-### Task 3: Gazebo Conveyor Belt & Item Spawner Node
+### Task 3: Gazebo Conveyor Belt & Automated Item Spawner
 
-In this task, launch the conveyor simulation, power the belt via service, and complete `item_spawner.py` to publish the box color.
+In this task, complete `item_spawner.py` so that boxes of alternating colors spawn onto the belt, drop off, are automatically deleted, and have their colors published.
 
-#### Step 1: Launch Gazebo Conveyor Belt
-In **Terminal 1**:
+1. Follow the `# MODIFY HERE` instructions in `ros2_conveyorbelt/python/item_spawner.py` and Section 1 of Task 3 in the lab manual.
+2. Rebuild and source:
+   ```bash
+   cd ~/ros2_ws
+   colcon build --symlink-install
+   source install/setup.bash
+   ```
+
+#### Run the 4-Terminal Pipeline:
+
+##### Terminal 1 — Gazebo Simulation:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 launch conveyorbelt_gazebo conveyorbelt.launch.py
 ```
-*Gazebo will open displaying the conveyor belt on the virtual floor.*
 
-#### Step 2: Power the Conveyor Belt via Service
-In **Terminal 2**:
+##### Terminal 2 — Power Conveyor Belt:
 ```bash
 source ~/ros2_ws/install/setup.bash
-
-# Check available conveyor services
-ros2 service list | grep CONVEYOR
-
-# Set belt power (e.g. 15.0 or 40.0)
-ros2 service call /CONVEYORPOWER conveyorbelt_msgs/srv/ConveyorBeltControl "{power: 15.0}"
+ros2 service call /CONVEYORPOWER conveyorbelt_msgs/srv/ConveyorBeltControl "{power: 15}"
 ```
-*You will see the belt surface begin to move in Gazebo.*
 
-#### Step 3: Complete `item_spawner.py`
-Open `ros2_conveyorbelt/python/item_spawner.py` and follow the instructions in the `# MODIFY HERE` sections:
-1. Import the appropriate message type for text and initialize the publisher on topic `/box_color`.
-2. Add logic in `spawn_object()` to cycle through block colors (red, blue, green) and publish each color message.
-
-#### Step 4: Run the Item Spawner Node
-In **Terminal 3**:
+##### Terminal 3 — Automated Spawner Node:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 run ros2_conveyorbelt item_spawner.py
 ```
 
-#### Step 5: Verify Color Publishing
-In **Terminal 4**:
+##### Terminal 4 — Echo Block Color:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 topic echo /box_color
 ```
-*As each box spawns on the moving belt, drops off the end, and is deleted, you should see `/box_color` continuously echo the active block color.*
 
 ---
 
-## 5. Checkpoint Checklist
+## 5. Checkpoint Checklist & Report Deliverables
 
 Before completing your lab report, verify:
-* [ ] Multiplication server returns accurate product to client and CLI calls.
-* [ ] Addition server returns accurate sum to client and CLI calls.
-* [ ] Conveyor belt moves when `/CONVEYORPOWER` is set to active power.
-* [ ] Red, blue, and green boxes spawn in order, travel down the belt, and are deleted when falling off.
-* [ ] `/box_color` echoes the matching color as each box is placed on the belt.
+* [ ] Multiplication server returns product to client and CLI calls.
+* [ ] Addition server and client are registered in `setup.py` and return accurate sum.
+* [ ] Conveyor belt starts and stops via `/CONVEYORPOWER` service calls.
+* [ ] Red, blue, and green boxes spawn in order, travel down the belt, and are deleted when falling off ($z < 0.05$ m).
+* [ ] `/box_color` echoes `red`, `blue`, `green` as each box is placed on the belt.
+* [ ] Answer both Lab Questions from the manual in your report.
